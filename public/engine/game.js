@@ -1,12 +1,11 @@
-'use strict';
-const { TILES, GROUPS, GROUP_TILES, CHANCE, CHEST } = require('./board');
+import { TILES, GROUPS, GROUP_TILES, CHANCE, CHEST } from './board.js';
 
-const START_MONEY = 1500;
+export const START_MONEY = 1500;
 const GO_SALARY = 200;
 const JAIL_FINE = 50;
 const JAIL_POS = 10;
 
-class GameError extends Error {}
+export class GameError extends Error {}
 const fail = (msg) => { throw new GameError(msg); };
 
 function shuffle(arr, rng) {
@@ -18,7 +17,7 @@ function shuffle(arr, rng) {
   return a;
 }
 
-class Game {
+export class Game {
   /**
    * @param {{id:string,name:string,token:string,color:string}[]} players
    */
@@ -351,6 +350,16 @@ class Game {
     this.nextTurn();
   }
 
+  /** Passe le tour d'un joueur absent (déclenché par un autre joueur) */
+  actSkipAbsent(target) {
+    if (this.phase === 'over') fail('Partie terminée');
+    if (this.cur.id !== target) fail('Ce n’est pas son tour');
+    if (this.debts.some((d) => d.playerId === target)) fail('Ce joueur a une dette : il faut l’éliminer');
+    if (this.phase === 'buy') this.addLog(`${this.cur.name} ne prend pas ${TILES[this.pendingBuy].name}.`);
+    this.addLog(`⏭️ ${this.cur.name} est absent·e : tour passé.`);
+    this.nextTurn();
+  }
+
   nextTurn() {
     this.doubles = 0;
     this.lastRollDoubles = false;
@@ -536,6 +545,16 @@ class Game {
     }
   }
 
+  /** État complet (pour qu'un autre joueur puisse reprendre le rôle d'hôte) */
+  snapshot() {
+    const { rng, ...rest } = this;
+    return JSON.parse(JSON.stringify(rest));
+  }
+
+  static restore(snap, rng = Math.random) {
+    return Object.assign(Object.create(Game.prototype), JSON.parse(JSON.stringify(snap)), { rng });
+  }
+
   toJSON() {
     return {
       players: this.players, props: this.props, turn: this.turn, currentId: this.cur.id,
@@ -545,5 +564,3 @@ class Game {
     };
   }
 }
-
-module.exports = { Game, GameError, START_MONEY };

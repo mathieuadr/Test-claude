@@ -1,7 +1,6 @@
-'use strict';
 // Plateau original "Skyline" : 40 cases, 8 quartiers, 4 lignes de métro, 2 services.
 
-const GROUPS = {
+export const GROUPS = {
   brown:  { name: 'Vieux Port',   color: '#a0715a', houseCost: 50 },
   sky:    { name: 'Les Canaux',   color: '#5cc8f2', houseCost: 50 },
   pink:   { name: 'Arts',         color: '#ef5da8', houseCost: 100 },
@@ -18,7 +17,7 @@ const p = (name, group, price, rent) => ({ type: 'property', name, group, price,
 const m = (name) => ({ type: 'metro', name, group: 'metro', price: 200 });
 const u = (name, icon) => ({ type: 'utility', name, group: 'utility', price: 150, icon });
 
-const TILES = [
+export const TILES = [
   { type: 'go', name: 'Départ' },
   p('Rue des Tanneurs', 'brown', 60, [2, 10, 30, 90, 160, 250]),
   { type: 'chest', name: 'Fortune' },
@@ -63,13 +62,13 @@ const TILES = [
 
 TILES.forEach((t, i) => { t.index = i; });
 
-const GROUP_TILES = {};
+export const GROUP_TILES = {};
 TILES.forEach((t) => {
   if (t.group) (GROUP_TILES[t.group] ||= []).push(t.index);
 });
 
 // Cartes. kind: money | move | moveBy | jail | jailCard | payEach | collectEach | repairs | nearest
-const CHANCE = [
+export const CHANCE = [
   { text: 'Avance jusqu’au Départ. Encaisse 200 ₭.', kind: 'move', to: 0 },
   { text: 'Rendez-vous à Cap Azur.', kind: 'move', to: 39 },
   { text: 'Va Place Écarlate. Si tu passes par le Départ, encaisse 200 ₭.', kind: 'move', to: 24 },
@@ -87,7 +86,7 @@ const CHANCE = [
   { text: 'Bon de sortie de prison. Garde cette carte.', kind: 'jailCard' },
 ];
 
-const CHEST = [
+export const CHEST = [
   { text: 'Avance jusqu’au Départ. Encaisse 200 ₭.', kind: 'move', to: 0 },
   { text: 'Erreur de la banque en ta faveur. Reçois 200 ₭.', kind: 'money', amount: 200 },
   { text: 'Visite chez le dentiste. Paie 50 ₭.', kind: 'money', amount: -50 },
@@ -105,4 +104,5 @@ const CHEST = [
   { text: 'Tu hérites de 100 ₭.', kind: 'money', amount: 100 },
 ];
 
-module.exports = { GROUPS, TILES, GROUP_TILES, CHANCE, CHEST };
+export const TOKENS = ['🚀', '🦄', '🐙', '🦊', '🎸', '🍩', '🛸', '🐼', '🌵', '👑'];
+export const COLORS = ['#ff5d8f', '#4fd1ff', '#ffd23f', '#7cf29c', '#b18cff', '#ff9b42'];

@@ -1,4 +1,6 @@
-// Skyline — client PWA
+// Skyline — client PWA (sans serveur : voir net.js)
+import { Net } from './net.js';
+import { TILES, GROUPS, TOKENS } from './engine/board.js';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = (n) => `${Number(n).toLocaleString('fr-FR')} ₭`;
@@ -10,7 +12,7 @@ const store = {
 };
 
 const S = {
-  ws: null, board: null, room: null, session: store.get('session'), token: store.get('token'),
+  net: null, board: { tiles: TILES, groups: GROUPS, tokens: TOKENS }, room: null, session: store.get('session'), token: store.get('token'),
   displayPos: {}, seenMove: 0, seenRoll: 0, seenCard: 0, seenLog: 0, seenTrade: null,
   money: {}, sheet: null, draft: null, animating: Promise.resolve(), retry: 0, wasMyTurn: false,
   wakeLock: null, installEvt: null, seededState: false,
@@ -28,35 +30,27 @@ function show(id) {
   for (const s of document.querySelectorAll('.screen')) s.classList.toggle('hidden', s.id !== id);
 }
 const vibrate = (p) => navigator.vibrate?.(p);
+const BROKER_QS = new URLSearchParams(location.search).get('broker') ? `&broker=${encodeURIComponent(new URLSearchParams(location.search).get('broker'))}` : '';
 
 // --------------------------------------------------------------- réseau
 function connect() {
-  if (S.ws && S.ws.readyState <= 1) return;
-  const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
-  S.ws = ws;
-  ws.onopen = () => {
-    S.retry = 0;
-    $('#conn').classList.add('hidden');
-    if (S.session) send({ t: 'resume', ...S.session });
-  };
-  ws.onmessage = (e) => onMessage(JSON.parse(e.data));
-  ws.onclose = () => {
-    if (S.session) $('#conn').classList.remove('hidden');
-    setTimeout(connect, Math.min(800 * 2 ** S.retry++, 8000));
-  };
+  S.net = new Net({
+    onMessage,
+    onStatus: (ok) => {
+      $('#conn').classList.toggle('hidden', ok || !S.session);
+      if (ok && S.session && !S.net.code) send({ t: 'resume', ...S.session });
+    },
+  });
 }
-function send(msg) {
-  if (S.ws?.readyState === 1) S.ws.send(JSON.stringify(msg));
-  else toast('Connexion en cours…', true);
-}
+function send(msg) { S.net.send(msg); }
 const act = (a, extra = {}) => send({ t: 'act', a, ...extra });
 
 function onMessage(msg) {
   switch (msg.t) {
     case 'joined':
-      S.session = { code: msg.code, playerId: msg.playerId, secret: msg.secret };
+      S.session = { code: msg.code, playerId: msg.playerId };
       store.set('session', S.session);
-      history.replaceState(null, '', `/?room=${msg.code}`);
+      history.replaceState(null, '', `${location.pathname}?room=${msg.code}${BROKER_QS}`);
       break;
     case 'state': onState(msg.room); break;
     case 'resumeFailed':
@@ -103,7 +97,7 @@ function initHome() {
   $('#btnCreate').onclick = () => go({ t: 'create' });
   $('#btnJoin').onclick = () => {
     const c = $('#code').value.trim().toUpperCase();
-    if (c.length !== 4) { toast('Le code fait 4 caractères', true); return; }
+    if (c.length !== 5) { toast('Le code fait 5 caractères', true); return; }
     go({ t: 'join', code: c });
   };
   $('#code').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#btnJoin').click(); });
@@ -148,7 +142,7 @@ function renderLobby(room) {
 }
 
 $('#btnShare').onclick = async () => {
-  const url = `${location.origin}/?room=${S.room.code}`;
+  const url = `${location.origin}${location.pathname}?room=${S.room.code}${BROKER_QS}`;
   const data = { title: 'Skyline', text: `Rejoins ma partie de Skyline ! Code : ${S.room.code}`, url };
   try {
     if (navigator.share) await navigator.share(data);
@@ -161,7 +155,7 @@ $('#btnLeaveLobby').onclick = () => leave();
 function leave() {
   send({ t: 'leave' });
   S.session = null; store.del('session'); S.room = null;
-  history.replaceState(null, '', '/');
+  history.replaceState(null, '', `${location.pathname}${BROKER_QS ? '?' + BROKER_QS.slice(1) : ''}`);
   closeSheet();
   show('home');
 }
@@ -399,7 +393,11 @@ function renderActions(g) {
     const conn = memberOf(cur.id)?.connected;
     st.innerHTML = `Tour de <span class="who" style="--pc:${cur.color}">${cur.token} ${esc(cur.name)}</span>${conn ? '' : ' <span class="muted">(hors ligne)</span>'}`;
     if (g.debts.length) st.innerHTML += '<div class="small muted">Règlement de dettes en cours…</div>';
-    if (isHost && !conn) buttons.push(btn(`⏭️ Éliminer ${cur.name} (absent)`, () => { if (confirm(`Éliminer ${cur.name} ?`)) send({ t: 'kick', playerId: cur.id }); }, 'danger'));
+    if (!conn) {
+      const owes = g.debts.some((d) => d.playerId === cur.id);
+      if (!owes) buttons.push(btn(`⏭️ Passer son tour`, () => send({ t: 'skip', playerId: cur.id }), 'primary'));
+      buttons.push(btn(`Éliminer ${cur.name}`, () => { if (confirm(`Éliminer ${cur.name} ? Ses biens retournent à la banque.`)) send({ t: 'kick', playerId: cur.id }); }, 'danger'));
+    }
   }
 
   box.innerHTML = '';
@@ -611,20 +609,16 @@ async function keepAwake() {
   try { S.wakeLock = await navigator.wakeLock.request('screen'); S.wakeLock.onrelease = () => { S.wakeLock = null; }; } catch { /* ignoré */ }
 }
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') { connect(); if (S.room?.game) keepAwake(); }
+  if (document.visibilityState === 'visible') {
+    if (S.net && !S.net.connected) S.net.client.reconnect();
+    if (S.room?.game) keepAwake();
+  }
 });
 
 // --------------------------------------------------------------- démarrage
-(async function boot() {
-  try {
-    S.board = await (await fetch('/api/board')).json();
-    store.set('board', S.board);
-  } catch {
-    S.board = store.get('board');
-    if (!S.board) { toast('Hors ligne — connecte-toi à Internet pour jouer', true); return; }
-  }
+(function boot() {
   initHome();
-  if (!S.session) show('home');
+  if (S.session) $('#conn').classList.remove('hidden'); else show('home');
   connect();
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
 })();

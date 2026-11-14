@@ -1,9 +1,8 @@
-'use strict';
 // Joue des parties aléatoires complètes pour vérifier que le moteur ne plante jamais
 // et que les invariants sont respectés.
-const assert = require('assert');
-const { Game, GameError } = require('../server/game');
-const { TILES } = require('../server/board');
+import assert from 'assert';
+import { Game, GameError } from '../public/engine/game.js';
+import { TILES } from '../public/engine/board.js';
 
 function mulberry32(a) {
   return () => {
@@ -18,7 +17,7 @@ function play(seed) {
   const rng = mulberry32(seed);
   const n = 2 + (seed % 5);
   const players = Array.from({ length: n }, (_, i) => ({ id: `p${i}`, name: `P${i}`, token: 'x', color: '#fff' }));
-  const g = new Game(players, rng);
+  let g = new Game(players, rng);
   let steps = 0;
   const tryAct = (pid, msg) => {
     try { g.dispatch(pid, msg); return true; } catch (e) { if (!(e instanceof GameError)) throw e; return false; }
@@ -65,6 +64,7 @@ function play(seed) {
     }
     assert(!g.cur.bankrupt || g.phase === 'over');
     JSON.stringify(g.toJSON());
+    if (steps % 97 === 0) { const r = Game.restore(g.snapshot(), rng); assert.deepStrictEqual(r.snapshot(), g.snapshot()); g = r; }
   }
   return { steps, over: g.phase === 'over', turns: g.turnCount };
 }

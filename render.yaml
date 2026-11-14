@@ -1,8 +1,0 @@
-# Déploiement en un clic sur Render (https://render.com) — offre gratuite compatible WebSocket
-services:
-  - type: web
-    name: skyline
-    runtime: docker
-    plan: free
-    healthCheckPath: /healthz
-    numInstances: 1

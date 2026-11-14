@@ -1,6 +1,7 @@
 // Service worker : app shell en cache, réseau en priorité pour rester à jour.
-const VERSION = 'skyline-v1';
-const SHELL = ['/', '/index.html', '/style.css', '/app.js', '/manifest.webmanifest', '/icons/icon.svg', '/icons/icon-192.png', '/api/board'];
+const VERSION = 'skyline-v3';
+const SHELL = ['./', './index.html', './style.css', './app.js', './net.js', './engine/board.js', './engine/game.js',
+  './vendor/mqtt.esm.js', './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -10,14 +11,14 @@ self.addEventListener('activate', (e) => {
 });
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-  if (e.request.method !== 'GET' || url.origin !== location.origin || url.pathname === '/ws') return;
-  const key = e.request.mode === 'navigate' ? '/' : e.request;
+  if (e.request.method !== 'GET' || url.origin !== location.origin) return;
+  const key = e.request.mode === 'navigate' ? './' : e.request;
   e.respondWith(
     fetch(e.request)
       .then((res) => {
         if (res.ok) { const copy = res.clone(); caches.open(VERSION).then((c) => c.put(key, copy)); }
         return res;
       })
-      .catch(() => caches.match(key).then((r) => r || caches.match('/')))
+      .catch(() => caches.match(key).then((r) => r || caches.match('./')))
   );
 });

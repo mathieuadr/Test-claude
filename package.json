@@ -1,19 +1,20 @@
 {
   "name": "skyline",
   "version": "1.0.0",
-  "description": "Skyline — jeu de plateau immobilier multijoueur en temps réel (PWA)",
-  "main": "server/index.js",
-  "type": "commonjs",
+  "description": "Skyline — jeu de plateau immobilier multijoueur en temps réel (PWA sans serveur)",
+  "type": "module",
   "scripts": {
-    "start": "node server/index.js",
-    "dev": "node --watch server/index.js",
-    "test": "node test/simulate.js"
+    "start": "node test/serve.mjs",
+    "test": "node test/simulate.mjs",
+    "e2e": "node test/e2e.mjs"
   },
   "engines": {
     "node": ">=18"
   },
   "license": "MIT",
-  "dependencies": {
-    "ws": "^8.23.0"
+  "devDependencies": {
+    "aedes": "^0.51.3",
+    "aedes-server-factory": "^0.2.1",
+    "mqtt": "^5.16.1"
   }
 }
